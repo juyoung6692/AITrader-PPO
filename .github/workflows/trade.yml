@@ -1,0 +1,41 @@
+name: Live Trade (Alpaca paper)
+
+on:
+  workflow_dispatch:
+  schedule:
+    # 미국 정규장(EDT/EST 둘 다 커버: UTC 13:30~20:55, 평일)
+    - cron: "*/5 13-20 * * 1-5"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: live-trade
+  cancel-in-progress: false
+
+jobs:
+  trade:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run live trader
+        env:
+          ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
+          ALPACA_API_SECRET: ${{ secrets.ALPACA_API_SECRET }}
+          TRADE_SYMBOL: ${{ vars.TRADE_SYMBOL || 'AAPL' }}
+          NOTIONAL_USD: ${{ vars.NOTIONAL_USD || '10000' }}
+          EOD_FLATTEN_MIN: ${{ vars.EOD_FLATTEN_MIN || '10' }}
+          MODEL_PATH: models/ppo_daytrader
+        run: python -m ppo_trader.live_us
