@@ -60,10 +60,6 @@ def train(
             tensorboard_log=train_cfg.log_path,
             verbose=1,
         )
-        model.learning_rate = train_cfg.learning_rate
-        model.ent_coef = train_cfg.ent_coef
-        model.vf_coef = train_cfg.vf_coef
-        model.clip_range = train_cfg.clip_range
         reset_timesteps = False
     else:
         model = PPO(
