@@ -2,9 +2,6 @@ name: Live Trade (Alpaca paper)
 
 on:
   workflow_dispatch:
-  schedule:
-    # 미국 정규장(EDT/EST 둘 다 커버: UTC 13:30~20:55, 평일)
-    - cron: "*/5 13-20 * * 1-5"
 
 permissions:
   contents: read

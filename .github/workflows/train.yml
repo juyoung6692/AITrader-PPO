@@ -5,7 +5,7 @@ on:
     inputs:
       symbols:
         description: "Space-separated tickers"
-        default: "AAPL MSFT NVDA TSLA AMD"
+        default: "AAPL MSFT NVDA TSLA AMD GOOGL META AMZN AVGO NFLX"
       interval:
         description: "Bar interval (e.g. 5m, 15m, 1h)"
         default: "5m"
@@ -13,14 +13,14 @@ on:
         description: "yfinance period (e.g. 60d)"
         default: "60d"
       timesteps:
-        description: "Total PPO timesteps"
-        default: "300000"
+        description: "Total PPO timesteps for this run"
+        default: "500000"
       n_envs:
         description: "Parallel envs"
-        default: "2"
+        default: "4"
   schedule:
-    # 매주 일요일 02:00 UTC (= KST 일요일 11:00)에 자동 재학습
-    - cron: "0 2 * * 0"
+    # 매 3시간마다 이어서 학습 (UTC 00,03,06,09,12,15,18,21시 정각)
+    - cron: "0 */3 * * *"
 
 permissions:
   contents: write
@@ -46,14 +46,14 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Train
+      - name: Train (resume if model exists)
         run: |
           python -m ppo_trader.train \
-            --symbols ${{ github.event.inputs.symbols || 'AAPL MSFT NVDA TSLA AMD' }} \
+            --symbols ${{ github.event.inputs.symbols || 'AAPL MSFT NVDA TSLA AMD GOOGL META AMZN AVGO NFLX' }} \
             --interval ${{ github.event.inputs.interval || '5m' }} \
             --period ${{ github.event.inputs.period || '60d' }} \
-            --timesteps ${{ github.event.inputs.timesteps || '300000' }} \
-            --n-envs ${{ github.event.inputs.n_envs || '2' }} \
+            --timesteps ${{ github.event.inputs.timesteps || '500000' }} \
+            --n-envs ${{ github.event.inputs.n_envs || '4' }} \
             --save-path models/ppo_daytrader
 
       - name: Evaluate held-out split
@@ -61,7 +61,7 @@ jobs:
         run: |
           python -m ppo_trader.evaluate \
             --model models/ppo_daytrader \
-            --symbols ${{ github.event.inputs.symbols || 'AAPL MSFT NVDA TSLA AMD' }} \
+            --symbols ${{ github.event.inputs.symbols || 'AAPL MSFT NVDA TSLA AMD GOOGL META AMZN AVGO NFLX' }} \
             --interval ${{ github.event.inputs.interval || '5m' }} \
             --period ${{ github.event.inputs.period || '60d' }} \
             | tee eval_report.txt
@@ -80,5 +80,5 @@ jobs:
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add models/ppo_daytrader.zip
-          git diff --cached --quiet && echo "no model changes" || git commit -m "chore: retrain PPO model [skip ci]"
+          git diff --cached --quiet && echo "no model changes" || git commit -m "chore: continual PPO retrain [skip ci]"
           git push || true

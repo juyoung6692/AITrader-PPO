@@ -50,24 +50,40 @@ def train(
 
     eval_env = VecMonitor(DummyVecEnv([_make_env_factory(eval_data, env_cfg, train_cfg.seed + 999)]))
 
-    model = PPO(
-        train_cfg.policy,
-        vec_env,
-        learning_rate=train_cfg.learning_rate,
-        n_steps=train_cfg.n_steps,
-        batch_size=train_cfg.batch_size,
-        n_epochs=train_cfg.n_epochs,
-        gamma=train_cfg.gamma,
-        gae_lambda=train_cfg.gae_lambda,
-        clip_range=train_cfg.clip_range,
-        ent_coef=train_cfg.ent_coef,
-        vf_coef=train_cfg.vf_coef,
-        max_grad_norm=train_cfg.max_grad_norm,
-        policy_kwargs=train_cfg.policy_kwargs,
-        tensorboard_log=train_cfg.log_path,
-        seed=train_cfg.seed,
-        verbose=1,
-    )
+    existing = Path(train_cfg.save_path + ".zip")
+    reset_timesteps = True
+    if existing.exists():
+        print(f"[train] resuming from {existing}")
+        model = PPO.load(
+            str(existing),
+            env=vec_env,
+            tensorboard_log=train_cfg.log_path,
+            verbose=1,
+        )
+        model.learning_rate = train_cfg.learning_rate
+        model.ent_coef = train_cfg.ent_coef
+        model.vf_coef = train_cfg.vf_coef
+        model.clip_range = train_cfg.clip_range
+        reset_timesteps = False
+    else:
+        model = PPO(
+            train_cfg.policy,
+            vec_env,
+            learning_rate=train_cfg.learning_rate,
+            n_steps=train_cfg.n_steps,
+            batch_size=train_cfg.batch_size,
+            n_epochs=train_cfg.n_epochs,
+            gamma=train_cfg.gamma,
+            gae_lambda=train_cfg.gae_lambda,
+            clip_range=train_cfg.clip_range,
+            ent_coef=train_cfg.ent_coef,
+            vf_coef=train_cfg.vf_coef,
+            max_grad_norm=train_cfg.max_grad_norm,
+            policy_kwargs=train_cfg.policy_kwargs,
+            tensorboard_log=train_cfg.log_path,
+            seed=train_cfg.seed,
+            verbose=1,
+        )
 
     callbacks = [
         CheckpointCallback(
@@ -85,9 +101,13 @@ def train(
         ),
     ]
 
-    model.learn(total_timesteps=train_cfg.total_timesteps, callback=callbacks)
+    model.learn(
+        total_timesteps=train_cfg.total_timesteps,
+        callback=callbacks,
+        reset_num_timesteps=reset_timesteps,
+    )
     model.save(train_cfg.save_path)
-    print(f"[train] saved model to {train_cfg.save_path}.zip")
+    print(f"[train] saved model to {train_cfg.save_path}.zip (resume={not reset_timesteps})")
     return train_cfg.save_path
 
 
