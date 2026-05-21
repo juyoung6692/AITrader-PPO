@@ -5,8 +5,13 @@ from typing import List
 
 
 DEFAULT_SYMBOLS: List[str] = [
-    "AAPL", "MSFT", "NVDA", "AMZN", "META",
-    "TSLA", "GOOGL", "AMD", "AVGO", "NFLX",
+    "AAPL", "MSFT", "NVDA", "AMZN", "META", "GOOGL", "TSLA",
+    "AMD", "AVGO", "QCOM", "TXN", "INTC", "MU", "AMAT", "LRCX", "ASML",
+    "ORCL", "CRM", "ADBE", "NFLX", "PLTR", "SHOP", "UBER", "SNOW", "NOW",
+    "JPM", "BAC", "GS", "MS", "C", "V", "MA",
+    "WMT", "COST", "HD", "MCD", "SBUX", "NKE", "DIS",
+    "JNJ", "PFE", "UNH", "LLY", "ABBV",
+    "BA", "CAT", "GE", "XOM", "CVX", "T",
 ]
 
 
