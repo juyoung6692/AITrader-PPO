@@ -1,28 +1,27 @@
-name: Train PPO Model (fast)
+name: Train PPO Scalper (fast)
 
 on:
   workflow_dispatch:
     inputs:
       symbols:
-        description: "Space-separated tickers (empty = use 30-symbol default)"
-        default: ""
+        description: "Space-separated tickers"
+        default: "AAPL MSFT NVDA TSLA AMD"
       interval:
-        description: "Bar interval (e.g. 5m, 15m, 1h)"
+        description: "Bar interval (5m / 15m / 1h)"
         default: "5m"
       period:
-        description: "Lookback (e.g. 365d, 730d). 5m bars on yfinance max 60d."
-        default: "730d"
+        description: "Lookback (60d / 730d, etc.)"
+        default: "60d"
       timesteps:
-        description: "Total PPO timesteps for this run"
+        description: "PPO timesteps for this run"
         default: "500000"
       n_envs:
         description: "Parallel envs"
         default: "4"
       data_source:
         description: "yfinance | alpaca"
-        default: "alpaca"
+        default: "yfinance"
   schedule:
-    # 매시간 정각(UTC)에 이어 학습
     - cron: "0 * * * *"
 
 permissions:
@@ -31,12 +30,6 @@ permissions:
 concurrency:
   group: ppo-train
   cancel-in-progress: false
-
-env:
-  DEFAULT_SYMBOLS_FAST: >-
-    AAPL MSFT NVDA AMZN META GOOGL TSLA AMD AVGO QCOM
-    INTC MU AMAT ASML ORCL CRM ADBE NFLX PLTR UBER
-    JPM BAC V MA WMT COST HD MCD DIS UNH
 
 jobs:
   train:
@@ -63,72 +56,38 @@ jobs:
         uses: actions/cache@v4
         with:
           path: data_cache
-          key: ${{ github.event.inputs.data_source || 'alpaca' }}-${{ github.event.inputs.interval || '5m' }}-${{ github.event.inputs.period || '730d' }}-${{ steps.date.outputs.value }}
+          key: ${{ github.event.inputs.data_source || 'yfinance' }}-${{ github.event.inputs.interval || '5m' }}-${{ github.event.inputs.period || '60d' }}-${{ steps.date.outputs.value }}
           restore-keys: |
-            ${{ github.event.inputs.data_source || 'alpaca' }}-${{ github.event.inputs.interval || '5m' }}-${{ github.event.inputs.period || '730d' }}-
+            ${{ github.event.inputs.data_source || 'yfinance' }}-${{ github.event.inputs.interval || '5m' }}-${{ github.event.inputs.period || '60d' }}-
 
       - name: Train (resume if model exists)
         env:
           ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
           ALPACA_API_SECRET: ${{ secrets.ALPACA_API_SECRET }}
-          DATA_SOURCE: ${{ github.event.inputs.data_source || 'alpaca' }}
+          DATA_SOURCE: ${{ github.event.inputs.data_source || 'yfinance' }}
         run: |
-          SYMS="${{ github.event.inputs.symbols }}"
-          : "${SYMS:=$DEFAULT_SYMBOLS_FAST}"
-          python -m ppo_trader.train \
-            --symbols $SYMS \
+          python -m ppo_trader.scalping_train \
+            --symbols ${{ github.event.inputs.symbols || 'AAPL MSFT NVDA TSLA AMD' }} \
             --interval ${{ github.event.inputs.interval || '5m' }} \
-            --period ${{ github.event.inputs.period || '730d' }} \
+            --period ${{ github.event.inputs.period || '60d' }} \
             --timesteps ${{ github.event.inputs.timesteps || '500000' }} \
             --n-envs ${{ github.event.inputs.n_envs || '4' }} \
-            --save-path models/ppo_daytrader
-
-      - name: Evaluate PPO on held-out split
-        continue-on-error: true
-        env:
-          ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
-          ALPACA_API_SECRET: ${{ secrets.ALPACA_API_SECRET }}
-          DATA_SOURCE: ${{ github.event.inputs.data_source || 'alpaca' }}
-        run: |
-          SYMS="${{ github.event.inputs.symbols }}"
-          : "${SYMS:=$DEFAULT_SYMBOLS_FAST}"
-          python -m ppo_trader.evaluate \
-            --model models/ppo_daytrader \
-            --symbols $SYMS \
-            --interval ${{ github.event.inputs.interval || '5m' }} \
-            --period ${{ github.event.inputs.period || '730d' }} \
-            | tee eval_report.txt
-
-      - name: Evaluate baselines (always-long, RSI rule)
-        continue-on-error: true
-        env:
-          ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
-          ALPACA_API_SECRET: ${{ secrets.ALPACA_API_SECRET }}
-          DATA_SOURCE: ${{ github.event.inputs.data_source || 'alpaca' }}
-        run: |
-          SYMS="${{ github.event.inputs.symbols }}"
-          : "${SYMS:=$DEFAULT_SYMBOLS_FAST}"
-          python -m ppo_trader.baseline \
-            --symbols $SYMS \
-            --interval ${{ github.event.inputs.interval || '5m' }} \
-            --period ${{ github.event.inputs.period || '730d' }} \
-            --strategies always_long rsi_meanrev \
-            | tee baseline_report.txt
+            --save-path models/ppo_scalper \
+            | tee scalping_report.txt
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: ppo-daytrader-${{ github.run_number }}
+          name: ppo-scalper-${{ github.run_number }}
           path: |
-            models/ppo_daytrader.zip
-            eval_report.txt
-            baseline_report.txt
+            models/ppo_scalper.zip
+            scalping_report.txt
           retention-days: 14
 
       - name: Commit updated model
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add models/ppo_daytrader.zip
-          git diff --cached --quiet && echo "no model changes" || git commit -m "chore: continual PPO retrain (fast) [skip ci]"
+          git add models/ppo_scalper.zip
+          git diff --cached --quiet && echo "no model changes" || git commit -m "chore: continual scalper retrain (fast) [skip ci]"
           git push || true
